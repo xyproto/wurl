@@ -1,6 +1,6 @@
 # wurl
 
-`wurl.c` is a small C program that uses `libcurl` and is a drop-in replacement for `wget`.
+Utility for fetching data from the web, and a drop-in replacement for `wget` in the form of a small C program that uses `libcurl`.
 
 ## Build
 
