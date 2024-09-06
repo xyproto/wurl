@@ -1,18 +1,16 @@
+#include <ctype.h>
 #include <curl/curl.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <ctype.h>
 
-// Function to write data to file
 static size_t write_data(void* ptr, size_t size, size_t nmemb, FILE* stream)
 {
     return fwrite(ptr, size, nmemb, stream);
 }
 
-// Function to display usage
 void print_usage(const char* prog_name)
 {
     fprintf(stderr, "Usage: %s [OPTION]... [URL]...\n", prog_name);
@@ -29,25 +27,31 @@ void print_usage(const char* prog_name)
     fprintf(stderr, "  --proxy=URL                 use the specified proxy.\n");
     fprintf(stderr, "  --limit-rate=RATE           limit download speed to RATE (e.g., 200K, 1M).\n");
     fprintf(stderr, "  --retry=NUMBER              set number of retries to NUMBER (0 for infinite).\n");
+    fprintf(stderr, "  --user-agent=STRING         set the User-Agent header.\n");
+    fprintf(stderr, "  --referer=STRING            set the Referer header.\n");
+    fprintf(stderr, "  --timeout=SECONDS           set the timeout for the entire transfer.\n");
+    fprintf(stderr, "  --dns-timeout=SECONDS       set the DNS lookup timeout.\n");
+    fprintf(stderr, "  --connect-timeout=SECONDS   set the connection timeout.\n");
+    fprintf(stderr, "  --read-timeout=SECONDS      set the read timeout.\n");
+    fprintf(stderr, "  --no-proxy                  don't use proxy, even if set in environment.\n");
+    fprintf(stderr, "  --header=STRING             add custom header to the HTTP request.\n");
+    fprintf(stderr, "  -4, --inet4-only            connect to IPv4 addresses only.\n");
+    fprintf(stderr, "  -6, --inet6-only            connect to IPv6 addresses only.\n");
     fprintf(stderr, "  -h, --help                  display this help and exit.\n");
 }
 
-// Function to parse rate limit (e.g., 200K, 1M)
 curl_off_t parse_rate_limit(const char* rate)
 {
     char* end;
     curl_off_t value = strtoll(rate, &end, 10);
-
     if (toupper(*end) == 'K') {
         value *= 1024;
     } else if (toupper(*end) == 'M') {
         value *= 1024 * 1024;
     }
-
     return value;
 }
 
-// Function to enable verbose, quiet, or debug modes
 void set_output_mode(CURL* curl, int verbose, int quiet, int debug)
 {
     if (quiet) {
@@ -64,7 +68,7 @@ int main(int argc, char* argv[])
 {
     CURL* curl;
     FILE* fp;
-    CURLcode res = CURLE_OK; // Initialize res to avoid warnings
+    CURLcode res = CURLE_OK;
     int opt;
     int option_index = 0;
     char* url = NULL;
@@ -73,13 +77,22 @@ int main(int argc, char* argv[])
     char* http_password = NULL;
     char* proxy = NULL;
     char* limit_rate = NULL;
+    char* user_agent = NULL;
+    char* referer = NULL;
     int follow_location = 0;
     int resume_download = 0;
     int verbose = 0;
     int quiet = 0;
     int debug = 0;
     int no_check_certificate = 0;
-    int retry_number = 20; // Default number of retries
+    int retry_number = 20;
+    long timeout = 0;
+    long dns_timeout = 0;
+    long connect_timeout = 0;
+    long read_timeout = 0;
+    int ipv4_only = 0;
+    int ipv6_only = 0;
+    struct curl_slist* headers = NULL;
 
     static struct option long_options[] = {
         { "output-document", required_argument, 0, 'O' },
@@ -94,6 +107,16 @@ int main(int argc, char* argv[])
         { "proxy", required_argument, 0, 0 },
         { "limit-rate", required_argument, 0, 0 },
         { "retry", required_argument, 0, 0 },
+        { "user-agent", required_argument, 0, 0 },
+        { "referer", required_argument, 0, 0 },
+        { "timeout", required_argument, 0, 0 },
+        { "dns-timeout", required_argument, 0, 0 },
+        { "connect-timeout", required_argument, 0, 0 },
+        { "read-timeout", required_argument, 0, 0 },
+        { "no-proxy", no_argument, 0, 0 },
+        { "header", required_argument, 0, 0 },
+        { "inet4-only", no_argument, 0, '4' },
+        { "inet6-only", no_argument, 0, '6' },
         { "help", no_argument, 0, 'h' },
         { 0, 0, 0, 0 }
     };
@@ -103,7 +126,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    while ((opt = getopt_long(argc, argv, "O:cLvdqh", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "O:cLvdqh46", long_options, &option_index)) != -1) {
         switch (opt) {
         case 'O':
             output_filename = optarg;
@@ -123,6 +146,12 @@ int main(int argc, char* argv[])
         case 'd':
             debug = 1;
             break;
+        case '4':
+            ipv4_only = 1;
+            break;
+        case '6':
+            ipv6_only = 1;
+            break;
         case 0:
             if (strcmp(long_options[option_index].name, "http-user") == 0) {
                 http_user = optarg;
@@ -136,6 +165,22 @@ int main(int argc, char* argv[])
                 limit_rate = optarg;
             } else if (strcmp(long_options[option_index].name, "retry") == 0) {
                 retry_number = atoi(optarg);
+            } else if (strcmp(long_options[option_index].name, "user-agent") == 0) {
+                user_agent = optarg;
+            } else if (strcmp(long_options[option_index].name, "referer") == 0) {
+                referer = optarg;
+            } else if (strcmp(long_options[option_index].name, "timeout") == 0) {
+                timeout = atol(optarg);
+            } else if (strcmp(long_options[option_index].name, "dns-timeout") == 0) {
+                dns_timeout = atol(optarg);
+            } else if (strcmp(long_options[option_index].name, "connect-timeout") == 0) {
+                connect_timeout = atol(optarg);
+            } else if (strcmp(long_options[option_index].name, "read-timeout") == 0) {
+                read_timeout = atol(optarg);
+            } else if (strcmp(long_options[option_index].name, "no-proxy") == 0) {
+                curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
+            } else if (strcmp(long_options[option_index].name, "header") == 0) {
+                headers = curl_slist_append(headers, optarg);
             }
             break;
         case 'h':
@@ -159,7 +204,6 @@ int main(int argc, char* argv[])
     curl = curl_easy_init();
     if (curl) {
         if (!output_filename) {
-            // Generate output filename from URL
             const char* last_slash = strrchr(url, '/');
             output_filename = last_slash ? strdup(last_slash + 1) : strdup("index.html");
         }
@@ -176,46 +220,72 @@ int main(int argc, char* argv[])
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
 
-        // Follow redirects if -L is used
         if (follow_location) {
             curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         }
 
-        // Resume download if -c is used
         if (resume_download && output_filename) {
             fseek(fp, 0L, SEEK_END);
             long int resume_pos = ftell(fp);
             curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)resume_pos);
         }
 
-        // Set HTTP authentication
         if (http_user && http_password) {
             curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
             curl_easy_setopt(curl, CURLOPT_USERNAME, http_user);
             curl_easy_setopt(curl, CURLOPT_PASSWORD, http_password);
         }
 
-        // Disable SSL certificate checking if --no-check-certificate is used
         if (no_check_certificate) {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
         }
 
-        // Set proxy if provided
         if (proxy) {
             curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
         }
 
-        // Set download rate limit if --limit-rate is used
         if (limit_rate) {
             curl_off_t rate_limit = parse_rate_limit(limit_rate);
             curl_easy_setopt(curl, CURLOPT_MAX_RECV_SPEED_LARGE, rate_limit);
         }
 
-        // Set output mode
+        if (user_agent) {
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent);
+        }
+
+        if (referer) {
+            curl_easy_setopt(curl, CURLOPT_REFERER, referer);
+        }
+
+        if (timeout > 0) {
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
+        }
+
+        if (dns_timeout > 0) {
+            curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, dns_timeout);
+        }
+
+        if (connect_timeout > 0) {
+            curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, connect_timeout);
+        }
+
+        if (read_timeout > 0) {
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, read_timeout);
+        }
+
+        if (ipv4_only) {
+            curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        } else if (ipv6_only) {
+            curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V6);
+        }
+
+        if (headers) {
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        }
+
         set_output_mode(curl, verbose, quiet, debug);
 
-        // Implement retry logic
         int retries = 0;
         do {
             res = curl_easy_perform(curl);
@@ -224,7 +294,7 @@ int main(int argc, char* argv[])
 
             retries++;
             fprintf(stderr, "Retrying %d/%d after failure: %s\n", retries, retry_number, curl_easy_strerror(res));
-            sleep(1); // Simple retry delay
+            sleep(1);
         } while (retries < retry_number);
 
         if (res != CURLE_OK) {
@@ -233,6 +303,9 @@ int main(int argc, char* argv[])
 
         fclose(fp);
         curl_easy_cleanup(curl);
+        if (headers) {
+            curl_slist_free_all(headers);
+        }
     }
 
     curl_global_cleanup();
