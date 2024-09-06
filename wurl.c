@@ -6,6 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define VERSION "wurl 0.0.1"
+
 static size_t write_data(void* ptr, size_t size, size_t nmemb, FILE* stream)
 {
     return fwrite(ptr, size, nmemb, stream);
@@ -38,6 +40,7 @@ void print_usage(const char* prog_name)
     fprintf(stderr, "  -4, --inet4-only            connect to IPv4 addresses only.\n");
     fprintf(stderr, "  -6, --inet6-only            connect to IPv6 addresses only.\n");
     fprintf(stderr, "  -h, --help                  display this help and exit.\n");
+    fprintf(stderr, "  --version                   output version information and exit.\n");
 }
 
 curl_off_t parse_rate_limit(const char* rate)
@@ -118,6 +121,7 @@ int main(int argc, char* argv[])
         { "inet4-only", no_argument, 0, '4' },
         { "inet6-only", no_argument, 0, '6' },
         { "help", no_argument, 0, 'h' },
+        { "version", no_argument, 0, 0 },
         { 0, 0, 0, 0 }
     };
 
@@ -181,6 +185,9 @@ int main(int argc, char* argv[])
                 curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
             } else if (strcmp(long_options[option_index].name, "header") == 0) {
                 headers = curl_slist_append(headers, optarg);
+            } else if (strcmp(long_options[option_index].name, "version") == 0) {
+                printf("%s\n", VERSION);
+                return 0;
             }
             break;
         case 'h':
