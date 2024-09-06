@@ -19,7 +19,7 @@ def find_free_port():
 PORT = find_free_port()
 TEST_FILE = "LICENSE"
 TEST_URL = f"http://localhost:{PORT}/{TEST_FILE}"
-WURL_EXECUTABLE = os.path.abspath("./wurl")
+WURL_EXECUTABLE = os.path.abspath("./wget")
 WURL_OUTPUT = "/tmp/wurl.txt"
 WGET_OUTPUT = "/tmp/wget.txt"
 WEB_DIR = "/tmp/webserver"
