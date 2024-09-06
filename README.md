@@ -1,2 +1,5 @@
 # wurl
-drop-in replacement for wget that uses libcurl
+
+## This is a work in progress!
+
+Drop-in replacement for `wget` that uses `libcurl`.
