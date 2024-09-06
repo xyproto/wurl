@@ -2,6 +2,8 @@
 
 Utility for fetching data from the web, and a drop-in replacement for `wget` in the form of a small C program that uses `libcurl`.
 
+Note that this utility is a bit experimental and a work in progress!
+
 ## Build
 
     make
