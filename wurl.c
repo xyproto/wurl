@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define VERSION "wurl 0.0.1"
+#define VERSION "wurl 0.0.2"
 
 void print_usage(const char* prog_name)
 {
