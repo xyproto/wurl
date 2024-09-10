@@ -8,11 +8,6 @@
 
 #define VERSION "wurl 0.0.1"
 
-static size_t write_data(void* ptr, size_t size, size_t nmemb, FILE* stream)
-{
-    return fwrite(ptr, size, nmemb, stream);
-}
-
 void print_usage(const char* prog_name)
 {
     fprintf(stderr, "Usage: %s [OPTION]... [URL]...\n", prog_name);
@@ -55,18 +50,6 @@ curl_off_t parse_rate_limit(const char* rate)
     return value;
 }
 
-void set_output_mode(CURL* curl, int verbose, int quiet, int debug)
-{
-    if (quiet) {
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
-    } else if (debug) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    } else if (verbose) {
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    }
-}
-
 int main(int argc, char* argv[])
 {
     CURL* curl;
@@ -75,7 +58,7 @@ int main(int argc, char* argv[])
     int opt;
     int option_index = 0;
     char* url = NULL;
-    char* output_filename = NULL;
+    const char* output_filename = NULL;
     char* http_user = NULL;
     char* http_password = NULL;
     char* proxy = NULL;
@@ -129,6 +112,9 @@ int main(int argc, char* argv[])
         print_usage(argv[0]);
         return 1;
     }
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
 
     while ((opt = getopt_long(argc, argv, "O:cLvdqh46", long_options, &option_index)) != -1) {
         switch (opt) {
@@ -207,12 +193,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
     if (curl) {
         if (!output_filename) {
             const char* last_slash = strrchr(url, '/');
-            output_filename = last_slash ? strdup(last_slash + 1) : strdup("index.html");
+            output_filename = last_slash ? last_slash + 1 : "index.html";
         }
 
         fp = fopen(output_filename, resume_download ? "ab" : "wb");
@@ -224,7 +208,7 @@ int main(int argc, char* argv[])
         }
 
         curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
 
         if (follow_location) {
@@ -291,7 +275,14 @@ int main(int argc, char* argv[])
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         }
 
-        set_output_mode(curl, verbose, quiet, debug);
+        if (quiet) {
+            curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+            curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+        } else if (debug) {
+            curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        } else if (verbose) {
+            curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        }
 
         int retries = 0;
         do {
