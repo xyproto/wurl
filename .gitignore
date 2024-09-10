@@ -1,55 +1,43 @@
-wurl
-wget
-
-# Prerequisites
-*.d
-
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
 *.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
+*.app
+*.bak
+*.cmd
+*.d
+*.dSYM/
 *.dll
+*.dylib
+*.elf
+*.exe
+*.exp
+*.gch
+*.hex
+*.html
+*.i*86
+*.idb
+*.ilk
+*.ko
+*.la
+*.lib
+*.lo
+*.map
+*.mod*
+*.o
+*.obj
+*.out
+*.pch
+*.pdb
 *.so
 *.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
 *.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
+*.swp
+*.tmp
+*.x86_64
+.DS_Store
 .tmp_versions/
-modules.order
-Module.symvers
 Mkfile.old
+Module.symvers
 dkms.conf
+include.txt
+modules.order
+wget
+wurl
