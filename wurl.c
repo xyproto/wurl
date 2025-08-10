@@ -8,7 +8,34 @@
 
 #define VERSION "wurl 0.0.2"
 
-void print_usage(const char* prog_name)
+static void print_usage(const char* prog_name);
+static curl_off_t parse_rate_limit(const char* rate);
+static int parse_int(const char* str, int* result);
+static int parse_long(const char* str, long* result);
+
+static int parse_int(const char* str, int* result)
+{
+    char* endptr;
+    long val = strtol(str, &endptr, 10);
+    if (endptr == str || *endptr != '\0' || val < 0 || val > INT_MAX) {
+        return -1;
+    }
+    *result = (int)val;
+    return 0;
+}
+
+static int parse_long(const char* str, long* result)
+{
+    char* endptr;
+    long val = strtol(str, &endptr, 10);
+    if (endptr == str || *endptr != '\0' || val < 0) {
+        return -1;
+    }
+    *result = val;
+    return 0;
+}
+
+static void print_usage(const char* prog_name)
 {
     fprintf(stderr, "Usage: %s [OPTION]... [URL]...\n", prog_name);
     fprintf(stderr, "Options:\n");
@@ -38,7 +65,7 @@ void print_usage(const char* prog_name)
     fprintf(stderr, "  --version                   output version information and exit.\n");
 }
 
-curl_off_t parse_rate_limit(const char* rate)
+static curl_off_t parse_rate_limit(const char* rate)
 {
     char* end;
     curl_off_t value = strtoll(rate, &end, 10);
@@ -115,6 +142,11 @@ int main(int argc, char* argv[])
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
+    if (!curl) {
+        fprintf(stderr, "Failed to initialize curl\n");
+        curl_global_cleanup();
+        return 1;
+    }
 
     while ((opt = getopt_long(argc, argv, "O:cLvdqh46", long_options, &option_index)) != -1) {
         switch (opt) {
@@ -154,33 +186,64 @@ int main(int argc, char* argv[])
             } else if (strcmp(long_options[option_index].name, "limit-rate") == 0) {
                 limit_rate = optarg;
             } else if (strcmp(long_options[option_index].name, "retry") == 0) {
-                retry_number = atoi(optarg);
+                if (parse_int(optarg, &retry_number) != 0) {
+                    fprintf(stderr, "Invalid retry number: %s\n", optarg);
+                    curl_easy_cleanup(curl);
+                    curl_global_cleanup();
+                    return 1;
+                }
             } else if (strcmp(long_options[option_index].name, "user-agent") == 0) {
                 user_agent = optarg;
             } else if (strcmp(long_options[option_index].name, "referer") == 0) {
                 referer = optarg;
             } else if (strcmp(long_options[option_index].name, "timeout") == 0) {
-                timeout = atol(optarg);
+                if (parse_long(optarg, &timeout) != 0) {
+                    fprintf(stderr, "Invalid timeout value: %s\n", optarg);
+                    curl_easy_cleanup(curl);
+                    curl_global_cleanup();
+                    return 1;
+                }
             } else if (strcmp(long_options[option_index].name, "dns-timeout") == 0) {
-                dns_timeout = atol(optarg);
+                if (parse_long(optarg, &dns_timeout) != 0) {
+                    fprintf(stderr, "Invalid DNS timeout value: %s\n", optarg);
+                    curl_easy_cleanup(curl);
+                    curl_global_cleanup();
+                    return 1;
+                }
             } else if (strcmp(long_options[option_index].name, "connect-timeout") == 0) {
-                connect_timeout = atol(optarg);
+                if (parse_long(optarg, &connect_timeout) != 0) {
+                    fprintf(stderr, "Invalid connect timeout value: %s\n", optarg);
+                    curl_easy_cleanup(curl);
+                    curl_global_cleanup();
+                    return 1;
+                }
             } else if (strcmp(long_options[option_index].name, "read-timeout") == 0) {
-                read_timeout = atol(optarg);
+                if (parse_long(optarg, &read_timeout) != 0) {
+                    fprintf(stderr, "Invalid read timeout value: %s\n", optarg);
+                    curl_easy_cleanup(curl);
+                    curl_global_cleanup();
+                    return 1;
+                }
             } else if (strcmp(long_options[option_index].name, "no-proxy") == 0) {
                 curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
             } else if (strcmp(long_options[option_index].name, "header") == 0) {
                 headers = curl_slist_append(headers, optarg);
             } else if (strcmp(long_options[option_index].name, "version") == 0) {
                 printf("%s\n", VERSION);
+                curl_easy_cleanup(curl);
+                curl_global_cleanup();
                 return 0;
             }
             break;
         case 'h':
             print_usage(argv[0]);
+            curl_easy_cleanup(curl);
+            curl_global_cleanup();
             return 0;
         default:
             print_usage(argv[0]);
+            curl_easy_cleanup(curl);
+            curl_global_cleanup();
             return 1;
         }
     }
@@ -190,6 +253,8 @@ int main(int argc, char* argv[])
     } else {
         fprintf(stderr, "URL is required.\n");
         print_usage(argv[0]);
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
         return 1;
     }
 
@@ -262,7 +327,8 @@ int main(int argc, char* argv[])
         }
 
         if (read_timeout > 0) {
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, read_timeout);
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, read_timeout);
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
         }
 
         if (ipv4_only) {
