@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define VERSION "wurl 0.0.2"
+#define VERSION "wurl 1.0.0"
 
 static void print_usage(const char* prog_name);
 static curl_off_t parse_rate_limit(const char* rate);

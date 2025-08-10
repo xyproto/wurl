@@ -20,5 +20,5 @@ Note that this utility is a bit experimental and a work in progress!
 
 ## General info
 
-* Version: 0.0.2
+* Version: 1.0.0
 * License: MIT
